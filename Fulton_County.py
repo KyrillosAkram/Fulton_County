@@ -1,8 +1,9 @@
+from time import time
 from bs4 import BeautifulSoup
 from urllib import urlopen
 import csv
 from multiprocessing import cpu_count,Pool
-
+startTime=time()
 inputs_path		="inputs.txt"
 propertyHeader	=['Input','ParcelID','Location Address','PropertyType','Neighborhood','Acreage','Exemption Codes','CurrentOwner','OwnerAddress','city','state','zipcode','structure','Units','Year Built','Sq ft','stories','construction','style','Year built','Sq Ft','basement','Full Bath','Half Bath','bedrooms','value']
 salesHeader		=['SalesDate','SalesPrice','SalesType','Buyer','Seller']
@@ -11,6 +12,8 @@ property_writer	=csv.writer(open("property.csv",'w'))
 sales_writer.writerow(salesHeader)
 property_writer.writerow(propertyHeader)
 inputs			=[line.strip() for line in open(inputs_path,'r')]
+sales_writer.close()
+property_writer.close()
 number_of_inputs=len(inputs)
 current			=0
 number_of_cpus	=cpu_count()
@@ -41,7 +44,7 @@ def decodekeyvalue(inputdata):
 #keyvalue =decodekeyvalue(inputData)
 #print(keyvalue)
 
-def extract(key):
+def scrape(key):
 	input_key		=key
 	key				=decodekeyvalue(key)
 	url				="https://qpublic.schneidercorp.com/Application.aspx?AppID=936&LayerID=18251&PageTypeID=4&PageID=8156&Q=1271885427&KeyValue="+key
@@ -112,9 +115,10 @@ def extract(key):
 	return [[SaleDate,SalesPrice,salesValidity,Buyer,Seller],[input_key,Parcel_Number,Location_Address,Property_Class,Neighborhood,Acres,Exceptions,CurrentOwner,OwnerAddress,streetAddress,city,state,zipcode,structure,units,year_built_c,total_sq_footage,stories,construction,style,year_built_r,Res_Sq_Ft,basement,Full_Bath,Half_Bath,bedrooms,Total_Value]] 
 
 with Pool(processes=number_of_cpus) as pool:
-	
+	result_database=pool.map(scrape,inputs)
 
 sales_writer.writerow([SaleDate,SalesPrice,salesValidity,Buyer,Seller])
 property_writer.writerow([input_key,Parcel_Number,Location_Address,Property_Class,Neighborhood,Acres,Exceptions,CurrentOwner,OwnerAddress,streetAddress,city,state,zipcode,structure,units,year_built_c,total_sq_footage,stories,construction,style,year_built_r,Res_Sq_Ft,basement,Full_Bath,Half_Bath,bedrooms,Total_Value])
-	
-	
+
+endingTime=time()
+print("Crawling takes ( %f s ) to compete ")
