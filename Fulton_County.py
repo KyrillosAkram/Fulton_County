@@ -3,8 +3,9 @@ from bs4 import BeautifulSoup
 from requests import get
 import csv
 from multiprocessing import cpu_count,Pool
-import re
+#import re.comile
 startTime=time()
+use_all_cores=False
 inputs_path		='inputs.txt'
 propertyHeader	=['Input','ParcelID','Location Address','PropertyType','Neighborhood','Acreage','Exemption Codes','CurrentOwner','OwnerAddress','city','state','zipcode','structure','Units','Year Built','Sq ft','stories','construction','style','Year built','Sq Ft','basement','Full Bath','Half Bath','bedrooms','value']
 salesHeader		=['SalesDate','SalesPrice','SalesType','Buyer','Seller']
@@ -40,10 +41,10 @@ def decodekeyvalue(inputdata):
 
 def scrape(key):
 	input_key		=key
-	key				=decodekeyvalue(key)
-	url				='https://qpublic.schneidercorp.com/Application.aspx?AppID=936&LayerID=18251&PageTypeID=4&PageID=8156&Q=1271885427&KeyValue='+key
-	print('scraping %s'%(input_key))
-	response		=get(url+key).text
+	keyval			=decodekeyvalue(input_key)
+	url				='https://qpublic.schneidercorp.com/Application.aspx?AppID=936&LayerID=18251&PageTypeID=4&PageID=8156&Q=1271885427&KeyValue='+keyval
+	print('scraping %s\n%s\n\n'%(input_key,url))
+	response		=get(url).text
 	page			=BeautifulSoup(response,'lxml')
 	Parcel_Number   =page.find('strong',text='Parcel Number').findParent('td').nextSibling.nextSibling.text.strip()
 	Location_Address=page.find('strong',text='Location Address').findParent('td').nextSibling.nextSibling.text.strip()
@@ -119,18 +120,25 @@ property_writer	=csv.writer(file1)
 sales_writer.writerow(salesHeader)
 property_writer.writerow(propertyHeader)
 
-'''
-with Pool(processes=number_of_cpus) as pool:
-	result_database=pool.map(scrape,inputs)
-'''
-result_database=[]
+if use_all_cores:
+	
+	with Pool(processes=number_of_cpus) as pool:
+		result_database=pool.map(scrape,inputs)
+	for i in range(number_of_inputs):#range(len(result_database)):
+		sales_writer.writerow(result_database[i][1][0])#[1]
+		property_writer.writerow(result_database[i][1][1])#[1]
+	
+else:
+	result_database=[]
 
-for i in range(number_of_inputs):
-	result_database.append(scrape(inputs[i]))
+	for i in range(number_of_inputs):
+		result_database.append(scrape(inputs[i]))
 
-for i in result_database:#range(len(result_database)):
-	sales_writer.writerow(result_database[1][0])
-	property_writer.writerow(result_database[1][1])
+	for i in range(number_of_inputs):#range(len(result_database)):
+		sales_writer.writerow(result_database[i][0])#[1]
+		property_writer.writerow(result_database[i][1])#[1]
+#print(result_database)
+
 
 file0.close()
 file1.close()
