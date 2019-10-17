@@ -3,9 +3,9 @@ from bs4 import BeautifulSoup
 from requests import get
 import csv
 from multiprocessing import cpu_count,Pool
-#import re.comile
 startTime=time()
-use_all_cores=False
+use_all_cores=True if input("Do you want to use all cores to accelereta scraping ?\t(y/n)\n\t")=='y' else False
+
 inputs_path		='inputs.txt'
 propertyHeader	=['Input','ParcelID','Location Address','PropertyType','Neighborhood','Acreage','Exemption Codes','CurrentOwner','OwnerAddress','city','state','zipcode','structure','Units','Year Built','Sq ft','stories','construction','style','Year built','Sq Ft','basement','Full Bath','Half Bath','bedrooms','value']
 salesHeader		=['SalesDate','SalesPrice','SalesType','Buyer','Seller']
@@ -13,10 +13,11 @@ file2			=open(inputs_path,'r')
 inputs			=[line.strip() for line in file2]
 file2.close()
 number_of_inputs=len(inputs)
-number_of_cpus	=cpu_count()
-print('found %i cpu and will be used to accelerate the proccess'%number_of_cpus)
-
-
+if use_all_cores:
+	number_of_cpus	=cpu_count()
+	print('found %i cpu and will be used to accelerate the proccess'%number_of_cpus)
+else:
+	print('single core mood activated')
 def decodekeyvalue(inputdata):
 	keyvalue =inputdata		
 	dash=keyvalue.find('-')
@@ -28,10 +29,10 @@ def decodekeyvalue(inputdata):
 		keyvalue=keyvalue[0:space]+keyvalue[1+space:]
 		space=keyvalue.find(' ')
 	lL=keyvalue.find('L',2)
-	if (lL!=-1): #or (ll!=-1)):
+	if (lL!=-1): 
 		keyvalue=keyvalue[0:lL]+'++'+keyvalue[lL:]
 	ll=keyvalue.find('l',2)
-	if (ll!=-1): #or (ll!=-1)):
+	if (ll!=-1): 
 		keyvalue=keyvalue[0:ll]+'++'+keyvalue[ll:]
 	if (inputdata[0]=='1'):
 		keyvalue=keyvalue[0:2]+'+'+keyvalue[2:]
@@ -43,7 +44,7 @@ def scrape(key):
 	input_key		=key
 	keyval			=decodekeyvalue(input_key)
 	url				='https://qpublic.schneidercorp.com/Application.aspx?AppID=936&LayerID=18251&PageTypeID=4&PageID=8156&Q=1271885427&KeyValue='+keyval
-	print('scraping %s\n%s\n\n'%(input_key,url))
+	print('scraping %s\n'%(input_key))
 	response		=get(url).text
 	page			=BeautifulSoup(response,'lxml')
 	Parcel_Number   =page.find('strong',text='Parcel Number').findParent('td').nextSibling.nextSibling.text.strip()
@@ -52,16 +53,14 @@ def scrape(key):
 	Neighborhood    =page.find('strong',text='Neighborhood').findParent('td').nextSibling.nextSibling.text.strip()
 	Acres           =page.find('strong',text='Acres').findParent('td').nextSibling.nextSibling.text.strip()
 	Exceptions      =page.find('strong',text='Exemptions').findParent('td').nextSibling.nextSibling.text.strip()
-	OwnerAddress	=page.find('span',{'id':'ctlBodyPane_ctl01_ctl01_lblCityStZip'}).text.strip().split(' ')
-	streetAddress	=page.find('span',{'id':'ctlBodyPane_ctl01_ctl01_lblAddress1'}).text.strip()
+	OwnerAddress	=page.find('span',{'id':'ctlBodyPane_ctl01_ctl01_lblAddress1'}).text.strip().split(' ')
+	streetAddress	=page.find('span',{'id':'ctlBodyPane_ctl01_ctl01_lblCityStZip'}).text.strip()
 	CurrentOwner	=page.find('span',{'id':'ctlBodyPane_ctl01_ctl01_lnkOwnerName1_lblSearch'})
-	
-	#print(CurrentOwner)
 	CurrentOwner	=CurrentOwner.text.strip() if CurrentOwner else page.find('a',{'id':'ctlBodyPane_ctl01_ctl01_lnkOwnerName1_lnkSearch'}).text.strip()
-#res='yes' if CurrentOwner else 'no'
-	#print(OwnerAddress)
-	city			=OwnerAddress.pop(0)
-	state			=OwnerAddress.pop(0)
+	city			=streetAddress.pop(0)
+	if streetAddress[0]=='CITY':
+		streetAddress.remove('CITY')
+	state			=streetAddress.pop(0)
 	for textx in OwnerAddress:
 		textx=textx+' '
 	zipcode			=''.join(OwnerAddress)
@@ -91,7 +90,7 @@ def scrape(key):
 		Full_Bath	=Full_Half[0]
 		Half_Bath	=Full_Half[1]
 		bedrooms	=page.find('section',{'id':'ctlBodyPane_ctl03_mSection'}).findNext('strong',text='Bedrooms').findParent('td').nextSibling.nextSibling.text.strip()
-		Total_Value	=page.find('td',text='Total Value').findNext('td').text.strip()#nextSibling.nextSibling.text.strip()#.findParent('td')find('section',{'id':'ctlBodyPane_ctl03_mSection'}).
+		Total_Value	=page.find('td',text='Total Value').findNext('td').text.strip()
 	else:
 		stories		=''
 		construction=''
@@ -124,20 +123,16 @@ if use_all_cores:
 	
 	with Pool(processes=number_of_cpus) as pool:
 		result_database=pool.map(scrape,inputs)
-	for i in range(number_of_inputs):#range(len(result_database)):
-		sales_writer.writerow(result_database[i][1][0])#[1]
-		property_writer.writerow(result_database[i][1][1])#[1]
-	
+
 else:
 	result_database=[]
-
 	for i in range(number_of_inputs):
 		result_database.append(scrape(inputs[i]))
 
-	for i in range(number_of_inputs):#range(len(result_database)):
-		sales_writer.writerow(result_database[i][0])#[1]
-		property_writer.writerow(result_database[i][1])#[1]
-#print(result_database)
+for i in range(number_of_inputs):
+	sales_writer.writerow(result_database[i][0])
+	property_writer.writerow(result_database[i][1])
+
 
 
 file0.close()
